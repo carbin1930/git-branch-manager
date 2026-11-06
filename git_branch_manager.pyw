@@ -46,7 +46,7 @@ except ImportError:
 # --------------------------------------------------------------------------
 
 APP_NAME = "Git 分支清理工具"
-APP_VERSION = "1.4.2"          # 新增功能时递增次版本号，修 bug/样式调整递增修订号
+APP_VERSION = "1.5.0"          # 新增功能时递增次版本号，修 bug/样式调整递增修订号
 APP_AUTHOR = "biden2023car@gmail.com"
 
 if getattr(sys, "frozen", False):
@@ -90,6 +90,7 @@ MERGE_CHOICES = ["不限", "只看已并入", "只看未并入"]
 DEFAULT_CONFIG = {
     "ui_version": 3,          # 布局变更时递增，用来丢弃过期列宽
     "last_repo": "",
+    "recent_repos": [],
     "main_branches": [],
     "time_filter": "全部",
     "from_date": "",
@@ -1009,9 +1010,12 @@ class App(tk.Tk):
         row0.columnconfigure(1, weight=1)
         ttk.Label(row0, text="仓库路径").grid(row=0, column=0, padx=(0, 6))
         self.path_var = tk.StringVar(value=self.cfg.get("last_repo", ""))
-        self.path_entry = ttk.Entry(row0, textvariable=self.path_var, font=UI_FONT)
-        self.path_entry.grid(row=0, column=1, sticky="ew")
-        self.path_entry.bind("<Return>", lambda e: self.refresh(True))
+        self.path_combo = ttk.Combobox(
+            row0, textvariable=self.path_var, font=UI_FONT,
+            values=list(self.cfg.get("recent_repos", [])))
+        self.path_combo.grid(row=0, column=1, sticky="ew")
+        self.path_combo.bind("<Return>", lambda e: self.refresh(True))
+        self.path_combo.bind("<<ComboboxSelected>>", self._on_recent_selected)
         ttk.Button(row0, text="浏览…", width=8, command=self.on_browse).grid(row=0, column=2, padx=4)
         self.btn_refresh = ttk.Button(row0, text="刷新", width=8, command=lambda: self.refresh(True))
         self.btn_refresh.grid(row=0, column=3, padx=(0, 4))
@@ -1318,6 +1322,25 @@ class App(tk.Tk):
         messagebox.showerror("程序异常", msg[-1500:])
 
     # -- 仓库 --------------------------------------------------------------
+    def _push_recent(self, path):
+        """把成功打开的仓库记入下拉历史：去重、最新在前、最多 10 条。"""
+        lst = [p for p in self.cfg.get("recent_repos", []) if not same_repo(p, path)]
+        lst.insert(0, path)
+        self.cfg["recent_repos"] = lst[:10]
+        try:
+            self.path_combo.configure(values=self.cfg["recent_repos"])
+        except Exception:
+            pass
+        save_config(self.cfg)
+
+    def _on_recent_selected(self, event=None):
+        path = self.path_var.get().strip()
+        if not path:
+            return
+        if self.repo and same_repo(path, self.repo.path):
+            return          # 已经是当前仓库，不重复加载
+        self.refresh(True)
+
     def on_browse(self):
         init = self.path_var.get().strip() or os.path.expanduser("~")
         path = filedialog.askdirectory(title="选择 Git 仓库目录", initialdir=init)
@@ -1373,6 +1396,7 @@ class App(tk.Tk):
             self.checked_remote.clear()
             self.path_var.set(root)
             self.cfg["last_repo"] = root
+            self._push_recent(root)
             save_config(self.cfg)
             self.cur_label.config(
                 text="当前分支: %s" % (cur if cur else "(detached)"))
