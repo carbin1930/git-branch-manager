@@ -943,6 +943,74 @@ class RestoreDialog(tk.Toplevel):
 
 
 # --------------------------------------------------------------------------
+# 悬停提示
+# --------------------------------------------------------------------------
+
+class Tooltip:
+    """轻量 tooltip：悬停 delay 毫秒后显示，支持传入函数动态生成文本。"""
+
+    def __init__(self, widget, text, delay=480, wrap=380):
+        self.widget = widget
+        self.text = text
+        self.delay = delay
+        self.wrap = wrap
+        self._tip = None
+        self._after = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<ButtonPress>", self._hide, add="+")
+
+    def _schedule(self, event=None):
+        self._cancel()
+        self._after = self.widget.after(self.delay, self._show)
+
+    def _cancel(self):
+        if self._after:
+            try:
+                self.widget.after_cancel(self._after)
+            except Exception:
+                pass
+            self._after = None
+
+    def _show(self):
+        self._after = None
+        try:
+            text = self.text() if callable(self.text) else self.text
+        except Exception:
+            return
+        if not text:
+            return
+        self._tip = tk.Toplevel(self.widget)
+        self._tip.wm_overrideredirect(True)
+        try:
+            self._tip.attributes("-topmost", True)
+        except Exception:
+            pass
+        tk.Label(self._tip, text=text, justify="left", bg="#fffce0", fg="#333333",
+                 relief="solid", bd=1, padx=9, pady=6,
+                 font=UI_FONT_SMALL, wraplength=self.wrap).pack()
+        self._tip.update_idletasks()
+        tw, th = self._tip.winfo_reqwidth(), self._tip.winfo_reqheight()
+        x = self.widget.winfo_rootx()
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
+        sw, sh = self.widget.winfo_screenwidth(), self.widget.winfo_screenheight()
+        if x + tw > sw - 10:
+            x = max(10, sw - tw - 10)
+        if y + th > sh - 10:                       # 下方放不下就翻到上方
+            y = self.widget.winfo_rooty() - th - 6
+        self._tip.wm_geometry("+%d+%d" % (x, y))
+
+    def _hide(self, event=None):
+        self._cancel()
+        if self._tip:
+            try:
+                self._tip.destroy()
+            except Exception:
+                pass
+            self._tip = None
+
+
+# --------------------------------------------------------------------------
 # 关于对话框
 # --------------------------------------------------------------------------
 
@@ -1112,11 +1180,17 @@ class App(tk.Tk):
         self.path_combo.grid(row=0, column=1, sticky="ew")
         self.path_combo.bind("<Return>", lambda e: self.refresh(True))
         self.path_combo.bind("<<ComboboxSelected>>", self._on_recent_selected)
+        Tooltip(self.path_combo, "填 Git 仓库路径，支持填子目录（会自动定位到仓库根）。\n"
+                                 "下拉框里是最近成功打开过的 10 个仓库，选中即加载。\n\n"
+                                 "启动时不会自动连接，需要点「刷新」才真正读取。")
         ttk.Button(row0, text="浏览…", width=8, command=self.on_browse).grid(row=0, column=2, padx=4)
         self.btn_refresh = ttk.Button(row0, text="刷新", width=8, command=lambda: self.refresh(True))
         self.btn_refresh.grid(row=0, column=3, padx=(0, 4))
         self.btn_fetch = ttk.Button(row0, text="git fetch --prune", width=18, command=self.on_fetch)
         self.btn_fetch.grid(row=0, column=4)
+        Tooltip(self.btn_fetch, "执行 git fetch --prune：同步远程分支列表，\n"
+                                "并清掉服务器上已删除、本地还留着的跟踪引用。\n\n"
+                                "删远程时若报「remote ref does not exist」，点这个就能清掉那条残留。")
 
         # 第二行：主分支 / 保护白名单 / 当前分支
         row1 = ttk.Frame(root)
@@ -1146,6 +1220,9 @@ class App(tk.Tk):
                                        state="readonly", width=16, font=UI_FONT)
         self.time_combo.pack(side="left")
         self.time_combo.bind("<<ComboboxSelected>>", lambda e: self.on_time_change())
+        Tooltip(self.time_combo, "按「多久没提交过」筛选，不是「最近提交有多频繁」。\n"
+                                 "选「超 1 年未提交」= 只显示最后提交早于一年前的分支。\n\n"
+                                 "「已并入且过期」按钮的阈值也跟随这里。")
 
         ttk.Label(row2, text="起").pack(side="left", padx=(8, 2))
         self.from_var = tk.StringVar(value=self.cfg.get("from_date", ""))
@@ -1171,10 +1248,16 @@ class App(tk.Tk):
 
         self.filter_local_var = tk.BooleanVar(value=self.cfg.get("filter_local", True))
         self.filter_remote_var = tk.BooleanVar(value=self.cfg.get("filter_remote", True))
-        ttk.Checkbutton(row2b, text="筛本地", variable=self.filter_local_var,
-                        command=self.on_filter_change).pack(side="left")
-        ttk.Checkbutton(row2b, text="筛远程", variable=self.filter_remote_var,
-                        command=self.on_filter_change).pack(side="left", padx=(2, 10))
+        c_loc = ttk.Checkbutton(row2b, text="筛本地", variable=self.filter_local_var,
+                                command=self.on_filter_change)
+        c_loc.pack(side="left")
+        Tooltip(c_loc, "对左表（本地分支）应用时间 / 并入 / 搜索等筛选条件。\n"
+                       "取消勾选后左表显示全部分支，不做任何过滤。")
+        c_rem = ttk.Checkbutton(row2b, text="筛远程", variable=self.filter_remote_var,
+                                command=self.on_filter_change)
+        c_rem.pack(side="left", padx=(2, 10))
+        Tooltip(c_rem, "对右表（远程分支）应用同样的筛选条件。\n"
+                       "取消勾选后右表显示全部分支，不做任何过滤。")
 
         ttk.Separator(row2b, orient="vertical").pack(side="left", fill="y", padx=4, pady=2)
 
@@ -1184,14 +1267,23 @@ class App(tk.Tk):
                           state="readonly", width=11, font=UI_FONT)
         mc.pack(side="left")
         mc.bind("<<ComboboxSelected>>", lambda e: self.on_filter_change())
+        Tooltip(mc, "按「是否已并入主分支」筛选——同时作用于本地、远程两张表。\n\n"
+                    "只看已并入：只留下尖端已经在主分支历史里的分支，删除不会丢代码\n"
+                    "只看未并入：只留下主分支没有的提交的分支，删除有风险")
 
         self.only_remote_missing_var = tk.BooleanVar(value=self.cfg.get("only_remote_missing", False))
-        ttk.Checkbutton(row2b, text="远程已无同名", variable=self.only_remote_missing_var,
-                        command=self.on_filter_change).pack(side="left", padx=(12, 2))
+        cb_miss = ttk.Checkbutton(row2b, text="远程已无同名", variable=self.only_remote_missing_var,
+                                  command=self.on_filter_change)
+        cb_miss.pack(side="left", padx=(12, 2))
+        Tooltip(cb_miss, "只显示「远程已经没有同名分支」的本地分支。\n"
+                         "这类通常是已经合并完、可以安全清掉的。")
 
         self.only_local_exists_var = tk.BooleanVar(value=self.cfg.get("only_local_exists", False))
-        ttk.Checkbutton(row2b, text="远程仅看本地有", variable=self.only_local_exists_var,
-                        command=self.on_filter_change).pack(side="left", padx=(2, 8))
+        cb_locc = ttk.Checkbutton(row2b, text="远程仅看本地有", variable=self.only_local_exists_var,
+                                  command=self.on_filter_change)
+        cb_locc.pack(side="left", padx=(2, 8))
+        Tooltip(cb_locc, "右表只显示「本地存在同名分支」的远程分支。\n"
+                         "删掉这类远程分支后仍可从本地重新推送。")
 
         # 第四行：左右两表
         paned = ttk.PanedWindow(root, orient="horizontal")
@@ -1236,32 +1328,61 @@ class App(tk.Tk):
         row4 = ttk.Frame(root)
         row4.grid(row=5, column=0, sticky="ew", pady=(6, 2))
 
-        ttk.Button(row4, text="全选", width=6, command=self.on_select_all).pack(side="left")
-        ttk.Button(row4, text="反选", width=6, command=self.on_invert).pack(side="left", padx=3)
-        ttk.Button(row4, text="全不选", width=7, command=self.on_select_none).pack(side="left")
+        b_all = ttk.Button(row4, text="全选", width=6, command=self.on_select_all)
+        b_all.pack(side="left")
+        Tooltip(b_all, "勾选当前列表里所有可见的行（本地 + 远程，受筛选条件影响）")
+        b_inv = ttk.Button(row4, text="反选", width=6, command=self.on_invert)
+        b_inv.pack(side="left", padx=3)
+        Tooltip(b_inv, "已勾选的取消、未勾选的勾上（本地 + 远程）")
+        b_none = ttk.Button(row4, text="全不选", width=7, command=self.on_select_none)
+        b_none.pack(side="left")
+        Tooltip(b_none, "清空所有勾选，不会删除任何东西")
 
         ttk.Separator(row4, orient="vertical").pack(side="left", fill="y", padx=6, pady=2)
 
-        ttk.Button(row4, text="已并入且过期", width=13,
-                   command=self.on_quick_merged_old).pack(side="left")
-        ttk.Button(row4, text="远程已无且已并入", width=15,
-                   command=self.on_quick_remote_missing).pack(side="left", padx=3)
+        b_quick = ttk.Button(row4, text="已并入且过期", width=13,
+                             command=self.on_quick_merged_old)
+        b_quick.pack(side="left")
+        Tooltip(b_quick, lambda: (
+            "勾选「已并入主分支」并且最后提交早于 %s 的分支。\n\n"
+            "「过期」不是固定值，它跟随上方「时间」筛选（当前：%s）。\n"
+            "本地和远程会一起勾上，再分别点两个删除按钮执行。"
+            % (self._quick_cutoff_desc(), self.time_var.get())))
+        b_miss = ttk.Button(row4, text="远程已无且已并入", width=15,
+                            command=self.on_quick_remote_missing)
+        b_miss.pack(side="left", padx=3)
+        Tooltip(b_miss, "勾选「远程已经没有同名分支」且「已并入主分支」的本地分支。\n"
+                        "这类通常只剩本地一份残留，可以放心清掉。")
 
         ttk.Separator(row4, orient="vertical").pack(side="left", fill="y", padx=6, pady=2)
 
         self.btn_del_local = ttk.Button(row4, text="删除本地选中(0)", width=15,
                                         command=self.on_delete_local)
         self.btn_del_local.pack(side="left")
+        Tooltip(self.btn_del_local, "删除左表勾选的本地分支。\n\n"
+                                    "自动跳过：当前检出分支、主分支、命中白名单、被 worktree 占用的。\n"
+                                    "删前自动记录 SHA 并创建备份点，删错了能从「还原…」找回。")
 
         self.allow_remote_var = tk.BooleanVar(value=self.cfg.get("allow_remote_delete", False))
-        ttk.Checkbutton(row4, text="允许删远程", variable=self.allow_remote_var,
-                        command=self.on_toggle_remote).pack(side="left", padx=(8, 2))
+        cb_allow = ttk.Checkbutton(row4, text="允许删远程", variable=self.allow_remote_var,
+                                   command=self.on_toggle_remote)
+        cb_allow.pack(side="left", padx=(8, 2))
+        Tooltip(cb_allow, "远程删除默认关闭，勾选后才能点右边的「删除远程选中」。\n"
+                          "提交时必须手工输入 DELETE 确认。")
         self.btn_del_remote = ttk.Button(row4, text="删除远程选中", width=12,
                                          command=self.on_delete_remote)
         self.btn_del_remote.pack(side="left")
+        Tooltip(self.btn_del_remote, "删除右表勾选的远程分支（需先勾选「允许删远程」）。\n\n"
+                                     "已并入主分支的，输入 DELETE 即可；\n"
+                                     "未并入的还要额外勾选确认，本地也没有副本时会红色警告可能彻底丢失。")
 
-        ttk.Button(row4, text="还原…", width=8, command=self.on_restore).pack(side="left", padx=(8, 0))
-        ttk.Button(row4, text="导出 CSV", width=10, command=self.on_export).pack(side="right")
+        b_restore = ttk.Button(row4, text="还原…", width=8, command=self.on_restore)
+        b_restore.pack(side="left", padx=(8, 0))
+        Tooltip(b_restore, "从删除日志和仓库内的备份点恢复已删除的分支。\n"
+                           "只显示当前仓库的记录；日志丢了也能从 refs/gbm-backup 找回来。")
+        b_export = ttk.Button(row4, text="导出 CSV", width=10, command=self.on_export)
+        b_export.pack(side="right")
+        Tooltip(b_export, "把当前筛选出的分支导出成 CSV。\nUTF-8 BOM 编码，Excel 双击打开中文不乱码。")
 
         # 第六行：状态栏（上下两行，窗口窄时也不会互相挤掉）
         status = ttk.Frame(root)
@@ -1922,6 +2043,17 @@ class App(tk.Tk):
         if key in TIME_TO_MONTHS:
             return minus_months(datetime.now(), TIME_TO_MONTHS[key]).timestamp()
         return minus_months(datetime.now(), 12).timestamp()
+
+    def _quick_cutoff_desc(self):
+        """给 tooltip 用：说明「过期」当前按什么算。"""
+        key = self.time_var.get()
+        months = TIME_TO_MONTHS.get(key, 12)
+        d = minus_months(datetime.now(), months)
+        if key in TIME_TO_MONTHS:
+            note = "时间筛选「%s」" % key
+        else:
+            note = "时间筛选「%s」，按 1 年算" % key
+        return "%s（%s）" % (d.strftime("%Y-%m-%d"), note)
 
     def on_quick_merged_old(self):
         cutoff = self._quick_cutoff()
