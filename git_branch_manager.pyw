@@ -19,6 +19,7 @@ import sys
 import tempfile
 import threading
 import traceback
+import webbrowser
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -46,8 +47,10 @@ except ImportError:
 # --------------------------------------------------------------------------
 
 APP_NAME = "Git 分支清理工具"
-APP_VERSION = "1.5.1"          # 新增功能时递增次版本号，修 bug/样式调整递增修订号
+APP_VERSION = "1.6.0"          # 新增功能时递增次版本号，修 bug/样式调整递增修订号
 APP_AUTHOR = "283365011@qq.com"
+APP_REPO = "https://github.com/carbin1930/git-branch-manager"
+APP_LICENSE = "Apache License 2.0"
 
 if getattr(sys, "frozen", False):
     # PyInstaller 打包后：__file__ 指向临时解压目录，配置/日志必须落在 exe 同级目录
@@ -940,6 +943,99 @@ class RestoreDialog(tk.Toplevel):
 
 
 # --------------------------------------------------------------------------
+# 关于对话框
+# --------------------------------------------------------------------------
+
+class AboutDialog(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("关于 " + APP_NAME)
+        self.transient(parent)
+        self.resizable(False, False)
+        self.configure(bg="#ffffff")
+        self.geometry("590x470")
+        self._parent = parent
+        pad_x = 26
+
+        tk.Label(self, text=APP_NAME, font=("Microsoft YaHei UI", 16, "bold"),
+                 bg="#ffffff", fg="#1a1a1a").pack(anchor="w", padx=pad_x, pady=(22, 0))
+        tk.Label(self, text="v" + APP_VERSION, font=UI_FONT, bg="#ffffff",
+                 fg="#888888").pack(anchor="w", padx=pad_x, pady=(0, 12))
+        tk.Label(self, text="批量清理 Git 仓库中的陈旧分支。\n"
+                            "删除前自动记录 SHA 并创建备份点，删错了随时可以还原。",
+                 font=UI_FONT, bg="#ffffff", fg="#333333", justify="left",
+                 anchor="w").pack(fill="x", padx=pad_x)
+
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=pad_x, pady=14)
+
+        info = tk.Frame(self, bg="#ffffff")
+        info.pack(fill="x", padx=pad_x)
+        info.columnconfigure(1, weight=1)
+        rows = (
+            ("作者", APP_AUTHOR, None),
+            ("许可", APP_LICENSE, None),
+            ("仓库", APP_REPO, APP_REPO),
+            ("最新版", APP_REPO + "/releases/latest", APP_REPO + "/releases/latest"),
+        )
+        for i, (label, value, url) in enumerate(rows):
+            tk.Label(info, text=label, font=UI_FONT, bg="#ffffff", fg="#888888",
+                     anchor="w", width=6).grid(row=i, column=0, sticky="w", pady=3)
+            if url:
+                lb = tk.Label(info, text=value, font=UI_FONT, bg="#ffffff",
+                              fg="#1a5fb4", anchor="w", cursor="hand2")
+                lb.bind("<Button-1>", lambda e, u=url: webbrowser.open(u))
+                lb.bind("<Enter>", lambda e, w=lb: w.configure(
+                    fg="#0d3f7a", font=(UI_FONT[0], UI_FONT[1], "underline")))
+                lb.bind("<Leave>", lambda e, w=lb: w.configure(fg="#1a5fb4", font=UI_FONT))
+            else:
+                lb = tk.Label(info, text=value, font=UI_FONT, bg="#ffffff",
+                              fg="#333333", anchor="w")
+            lb.grid(row=i, column=1, sticky="w", pady=3)
+
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=pad_x, pady=14)
+
+        tk.Label(self, text="技术栈：Python 3 + Tkinter（零第三方依赖）+ git CLI",
+                 font=UI_FONT_SMALL, bg="#ffffff", fg="#777777",
+                 anchor="w").pack(fill="x", padx=pad_x)
+
+        paths = tk.Frame(self, bg="#f7f7f7")
+        paths.pack(fill="x", padx=pad_x, pady=(10, 0))
+        for txt, pady in (("配置：%s" % CONFIG_PATH, (6, 0)),
+                          ("日志：%s" % LOG_PATH, (2, 6))):
+            tk.Label(paths, text=txt, font=UI_FONT_SMALL, bg="#f7f7f7", fg="#666666",
+                     anchor="w", justify="left", wraplength=500).pack(
+                fill="x", padx=8, pady=pady)
+
+        btns = tk.Frame(self, bg="#ffffff")
+        btns.pack(fill="x", padx=pad_x, pady=14)
+        ttk.Button(btns, text="打开仓库", width=12,
+                   command=lambda: webbrowser.open(APP_REPO)).pack(side="left")
+        ttk.Button(btns, text="打开程序目录", width=14,
+                   command=self._open_dir).pack(side="left", padx=6)
+        ttk.Button(btns, text="关闭", width=10, command=self.destroy).pack(side="right")
+
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.grab_set()
+        self.after(50, self._center)
+
+    def _open_dir(self):
+        try:
+            os.startfile(APP_DIR)
+        except Exception:
+            webbrowser.open("file://" + APP_DIR.replace("\\", "/"))
+
+    def _center(self):
+        try:
+            self.update_idletasks()
+            p = self._parent
+            x = p.winfo_rootx() + (p.winfo_width() - self.winfo_width()) // 2
+            y = p.winfo_rooty() + (p.winfo_height() - self.winfo_height()) // 2
+            self.geometry("+%d+%d" % (max(x, 0), max(y, 0)))
+        except Exception:
+            pass
+
+
+# --------------------------------------------------------------------------
 # 主窗口
 # --------------------------------------------------------------------------
 
@@ -1182,8 +1278,13 @@ class App(tk.Tk):
         line2.pack(fill="x")
         ttk.Label(line2, textvariable=self.detail_var, foreground="#777777",
                   font=UI_FONT_SMALL, anchor="w").pack(side="left", fill="x", expand=True)
-        ttk.Label(line2, text="v%s  ·  %s" % (APP_VERSION, APP_AUTHOR),
-                  foreground="#999999", font=UI_FONT_SMALL).pack(side="right")
+        self.ver_label = ttk.Label(
+            line2, text="v%s  ·  %s  ·  关于" % (APP_VERSION, APP_AUTHOR),
+            foreground="#999999", font=UI_FONT_SMALL, cursor="hand2")
+        self.ver_label.pack(side="right")
+        self.ver_label.bind("<Button-1>", lambda e: self.on_about())
+        self.ver_label.bind("<Enter>", lambda e: self.ver_label.configure(foreground="#1a5fb4"))
+        self.ver_label.bind("<Leave>", lambda e: self.ver_label.configure(foreground="#999999"))
 
         self._refresh_main_chips()
         state = "normal" if self.time_var.get() == "自定义" else "disabled"
@@ -2158,6 +2259,9 @@ class App(tk.Tk):
         self._bg(work, done)
 
     # -- 删除远程 ----------------------------------------------------------
+    def on_about(self):
+        AboutDialog(self)
+
     def on_restore(self):
         if not self.repo:
             messagebox.showinfo("提示", "请先打开一个仓库。")

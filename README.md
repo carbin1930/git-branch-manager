@@ -1,6 +1,6 @@
 # Git 分支清理工具
 
-**v1.5.1**　作者：283365011@qq.com
+**v1.6.0**　作者：283365011@qq.com
 
 [**⬇ 下载 Windows 版**](https://github.com/carbin1930/git-branch-manager/releases/latest)　·　免安装单文件　·　零第三方依赖
 
@@ -61,10 +61,13 @@
 
 ```bat
 python -m PyInstaller --noconfirm --clean --onefile --noconsole ^
-  --name GitBranchManager --distpath dist --workpath build git_branch_manager.pyw
+  --name GitBranchManager --version-file version_info.txt ^
+  --distpath dist --workpath build git_branch_manager.pyw
 ```
 
-产物在 `dist\GitBranchManager.exe`。打包后可用 `GitBranchManager.exe --diag` 生成 `diag.txt`，确认 `app_dir`、`config_path`、Tk 版本是否正确（排查"配置写不进去"时最有用）。
+产物在 `dist\GitBranchManager.exe`。`version_info.txt` 给 exe 写入文件属性（产品名、版本、版权），右键「属性 → 详细信息」能看到，升级版本时记得同步改里面的 `filevers` / `FileVersion`。
+
+打包后可用 `GitBranchManager.exe --diag` 生成 `diag.txt`，确认 `app_dir`、`config_path`、Tk 版本是否正确（排查"配置写不进去"时最有用）。
 
 ---
 
@@ -84,6 +87,12 @@ python -m PyInstaller --noconfirm --clean --onefile --noconsole ^
 ```
 
 窗口默认 1200×720，可自由缩放；列宽可拖动调整，下次启动会记住。
+
+状态栏右下角的 `v1.6.0 · 邮箱 · 关于` 可以点击，弹出关于框：版本、作者、开源许可、仓库地址、配置文件与日志的实际路径，以及「打开程序目录」按钮。
+
+### 关于
+
+「关于」对话框里带项目仓库和最新版下载地址，点一下就跳转。如果你是从别处拿到这个 exe、想找源码或看有没有新版本，从状态栏右下角进最方便。
 
 ### 关键概念
 
@@ -242,7 +251,8 @@ git for-each-ref --format="delete %(refname)" refs/gbm-backup | git update-ref -
 
 | 版本 | 变更 |
 |---|---|
-| **1.5.1** | 作者邮箱恢复为 283365011@qq.com |
+| **1.6.0** | 新增「关于」对话框：版本、作者、许可、仓库地址、配置与日志路径，一键打开程序目录 |
+| 1.5.1 | 作者邮箱恢复为 283365011@qq.com |
 | 1.5.0 | 仓库路径改为可下拉的历史记录（最近 10 个，自动去重）；README 重构并加入界面截图 |
 | 1.4.2 | 作者信息更新；版本号统一显示在标题栏与状态栏 |
 | 1.4.1 | 提示里的分支名改为每行一条（原先顿号挤成一段）；确认框按内容自适应高度 |
