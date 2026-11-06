@@ -46,8 +46,8 @@ except ImportError:
 # --------------------------------------------------------------------------
 
 APP_NAME = "Git 分支清理工具"
-APP_VERSION = "1.4.1"          # 新增功能时递增次版本号，修 bug/样式调整递增修订号
-APP_AUTHOR = "283365011@qq.com"
+APP_VERSION = "1.4.2"          # 新增功能时递增次版本号，修 bug/样式调整递增修订号
+APP_AUTHOR = "biden2023car@gmail.com"
 
 if getattr(sys, "frozen", False):
     # PyInstaller 打包后：__file__ 指向临时解压目录，配置/日志必须落在 exe 同级目录
