@@ -2,6 +2,8 @@
 
 **v1.4.1**　作者：283365011@qq.com
 
+> **[⬇ 下载 Windows 版（GitBranchManager.exe）](https://github.com/carbin1930/git-branch-manager/releases/latest)**
+
 在一个本地 Git 仓库里并排查看「本地分支」和「远程分支」，按最后提交时间、远程有无、是否已并入主分支筛选，然后带保护地批量删除陈旧分支。
 
 零第三方依赖：Python 标准库 + Tkinter + `git` CLI。
@@ -23,11 +25,11 @@
 
 ## 运行
 
-**方式一（推荐）** 双击 `dist\GitBranchManager.exe`。
+**方式一（推荐）** 从 [Releases](https://github.com/carbin1930/git-branch-manager/releases/latest) 下载 `GitBranchManager.exe`，双击运行。
 
-免安装、不需要 Python 环境，单文件 12 MB，唯一的外部依赖是 `git`（必须在 PATH 中）。
+免安装、不需要 Python 环境，单文件 11.4 MB，唯一的外部依赖是 `git`（必须在 PATH 中）。
 
-> 仓库里不包含打包产物。clone 下来后先按下面「重新打包」生成 `dist\GitBranchManager.exe`，或用方式二直接跑源码。
+> exe 未做代码签名，首次运行若被 Windows SmartScreen 拦截，点「更多信息」→「仍要运行」。
 
 **方式二** 源码运行：双击 `启动.vbs`（无控制台窗口），或命令行 `pythonw git_branch_manager.pyw`。
 
