@@ -47,7 +47,7 @@ except ImportError:
 # --------------------------------------------------------------------------
 
 APP_NAME = "Git 分支清理工具"
-APP_VERSION = "1.7.0"          # 新增功能时递增次版本号，修 bug/样式调整递增修订号
+APP_VERSION = "1.8.0"          # 新增功能时递增次版本号，修 bug/样式调整递增修订号
 APP_AUTHOR = "283365011@qq.com"
 APP_REPO = "https://github.com/carbin1930/git-branch-manager"
 APP_LICENSE = "Apache License 2.0"
