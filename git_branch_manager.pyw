@@ -1237,9 +1237,15 @@ class App(tk.Tk):
 
         ttk.Label(row2, text="🔍").pack(side="left", padx=(2, 2))
         self.search_var = tk.StringVar()
-        self.search_entry = ttk.Entry(row2, textvariable=self.search_var, width=16, font=UI_FONT)
+        self.search_entry = ttk.Entry(row2, textvariable=self.search_var, width=24, font=UI_FONT)
         self.search_entry.pack(side="left")
         self.search_var.trace_add("write", lambda *a: self.on_filter_change())
+        self._placeholder(self.search_entry, self.search_var, "分支名，支持 * 通配")
+        Tooltip(self.search_entry, "按分支名筛选，输入即时生效（本地和远程两张表都过滤）：\n\n"
+                                   "· prod        包含 prod 的分支（子串，忽略大小写）\n"
+                                   "· prod-*      通配符，* 匹配任意字符、? 匹配单个字符\n"
+                                   "· prod wip    空格分隔表示「同时包含」多个关键字\n\n"
+                                   "筛完点「全选」只会勾选当前可见的行，再点删除就能批量清理。")
         ttk.Button(row2, text="重置", width=6, command=self.on_reset_filter).pack(side="left", padx=6)
 
         # 第三行续：筛选开关（单独一行，窗口窄时才不会被挤掉）
@@ -1804,13 +1810,32 @@ class App(tk.Tk):
             return lambda b: (bool(mains) and not b.merged_into and not b.is_main) if mains else (not b.is_main)
         return lambda b: True
 
+    def _name_matcher(self):
+        """分支名匹配：默认子串（忽略大小写）；含 * / ? 时按通配符；空格分隔多个关键字取交集。"""
+        raw = self.search_var.get().strip().lower()
+        if not raw:
+            return lambda name: True
+        terms = raw.split()
+
+        def match_one(low, t):
+            if "*" in t or "?" in t:
+                return fnmatch.fnmatchcase(low, t)
+            return t in low
+
+        def matcher(name):
+            n = name.lower()
+            return all(match_one(n, t) for t in terms)
+
+        return matcher
+
     def _apply_filters(self):
         pred_time, self._time_desc = self._time_predicate()
         pred_merge = self._merge_predicate()
-        kw = self.search_var.get().strip().lower()
+        name_ok = self._name_matcher()
 
         def keep(b, is_local):
-            if kw and kw not in b.short.lower():
+            # name 不带 remote 前缀，short 带；任一命中即可，这样 prod-* 也能匹配 origin/prod-x
+            if not (name_ok(b.name) or name_ok(b.short)):
                 return False
             if not pred_time(b.commit_ts):
                 return False
@@ -2043,6 +2068,23 @@ class App(tk.Tk):
         if key in TIME_TO_MONTHS:
             return minus_months(datetime.now(), TIME_TO_MONTHS[key]).timestamp()
         return minus_months(datetime.now(), 12).timestamp()
+
+    def _placeholder(self, entry, var, text):
+        """给 Entry 加占位提示：Tk 没有原生支持，叠一个 Label 来实现。"""
+        lb = tk.Label(entry, text=text, foreground="#a6a6a6", background="#ffffff",
+                      font=UI_FONT, cursor="xterm", anchor="w")
+
+        def sync(*_a):
+            if var.get().strip():
+                lb.place_forget()
+            else:
+                lb.place(x=5, y=1)
+
+        var.trace_add("write", sync)
+        entry.bind("<FocusIn>", lambda e: lb.place_forget(), add="+")
+        entry.bind("<FocusOut>", lambda e: sync(), add="+")
+        lb.bind("<Button-1>", lambda e: entry.focus_set())
+        sync()
 
     def _quick_cutoff_desc(self):
         """给 tooltip 用：说明「过期」当前按什么算。"""
