@@ -1133,6 +1133,7 @@ class App(tk.Tk):
         self.sort_state = {"local": ("date", True), "remote": ("date", True)}
         self.q = queue.Queue()
         self._busy = False
+        self._blocker = None
         self._gen = 0
         self._fetch_first = True
 
@@ -1494,6 +1495,45 @@ class App(tk.Tk):
         threading.Thread(target=runner, daemon=True).start()
 
     # -- 进度反馈 ----------------------------------------------------------
+    def _lock_ui(self, text="处理中，请稍候…"):
+        """破坏性操作期间盖住窗口，挡住继续点击，避免状态错乱。"""
+        if self._blocker:
+            return
+        try:
+            self.update_idletasks()
+            top = tk.Toplevel(self)
+            top.overrideredirect(True)
+            top.configure(bg="#1e1e1e")
+            try:
+                top.attributes("-alpha", 0.62)
+            except Exception:
+                pass
+            x, y = self.winfo_rootx(), self.winfo_rooty()
+            w, h = max(self.winfo_width(), 400), max(self.winfo_height(), 300)
+            top.geometry("%dx%d+%d+%d" % (w, h, x, y))
+            tk.Label(top, text=text, fg="#ffffff", bg="#1e1e1e",
+                     font=("Microsoft YaHei UI", 12, "bold")).pack(expand=True)
+            top.lift()
+            top.grab_set()
+            self._blocker = top
+            self.config(cursor="watch")
+        except Exception:
+            self._blocker = None
+
+    def _unlock_ui(self):
+        top, self._blocker = self._blocker, None
+        try:
+            self.config(cursor="")
+        except Exception:
+            pass
+        if not top:
+            return
+        for fn in (top.grab_release, top.destroy):
+            try:
+                fn()
+            except Exception:
+                pass
+
     def _show_progress(self, text=None, maximum=None):
         """maximum 有值 -> 百分比进度；否则 -> 来回滚动的忙碌动画。"""
         if text:
@@ -1805,7 +1845,9 @@ class App(tk.Tk):
         mode = self.merge_var.get()
         mains = self.cfg.get("main_branches", [])
         if mode == "只看已并入":
-            return lambda b: bool(b.merged_into)
+            # 主分支的 sha 必然在自己的 rev-list 里，会被算成「已并入自己」；
+            # 但它本来就不能删，列出来只会干扰，所以排除掉。
+            return lambda b: bool(b.merged_into) and not b.is_main
         if mode == "只看未并入":
             return lambda b: (bool(mains) and not b.merged_into and not b.is_main) if mains else (not b.is_main)
         return lambda b: True
@@ -2224,6 +2266,7 @@ class App(tk.Tk):
         self.btn_del_remote.state(["disabled"])
         self.btn_fetch.state(["disabled"])
         self._show_progress("正在执行 git fetch --prune …")
+        self._lock_ui("正在同步远程分支，请稍候…")
         repo = self.repo
 
         def work():
@@ -2233,6 +2276,7 @@ class App(tk.Tk):
             self._busy = False
             self.btn_fetch.state(["!disabled"])
             self._end_progress()
+            self._unlock_ui()
             if isinstance(res, Exception):
                 self.status_var.set("fetch 失败：%s" % res)
                 self._update_buttons()
@@ -2341,6 +2385,7 @@ class App(tk.Tk):
         self.btn_del_local.state(["disabled"])
         self.btn_del_remote.state(["disabled"])
         self._show_progress("正在删除 %d 个分支…" % total)
+        self._lock_ui("正在删除 %d 个分支，请稍候…" % total)
 
         def work():
             ok, fail, valid = [], [], []
@@ -2402,6 +2447,7 @@ class App(tk.Tk):
 
         def done(res):
             self._end_progress()
+            self._unlock_ui()
             self._busy = False
             if isinstance(res, Exception):
                 self.status_var.set("删除失败：%s" % res)
@@ -2515,6 +2561,7 @@ class App(tk.Tk):
         self.btn_del_remote.state(["disabled"])
         self.btn_del_local.state(["disabled"])
         self._show_progress("正在删除远程 0/%d …" % total, maximum=total)
+        self._lock_ui("正在删除 %d 个远程分支，请稍候…" % total)
 
         def work():
             ok, fail = [], []
@@ -2538,6 +2585,7 @@ class App(tk.Tk):
 
         def done(res):
             self._end_progress()
+            self._unlock_ui()
             self._busy = False
             if isinstance(res, Exception):
                 self.status_var.set("远程删除失败：%s" % res)
