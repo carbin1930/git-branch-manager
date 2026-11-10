@@ -1,26 +1,12 @@
 # Git 分支清理工具（Git Branch Manager）
 
+**中文** ｜ [English](README_EN.md)
+
 **v1.8.1**　作者：283365011@qq.com
 
 [**⬇ 下载 Windows 版**](https://github.com/carbin1930/git-branch-manager/releases/latest)　·　免安装单文件　·　零第三方依赖
 
 ---
-
-## What it does
-
-**Git Branch Manager** is a single-file Windows app for cleaning up stale branches in a local Git repository.
-
-It lists local and remote branches side by side, each row showing the last commit date, whether a remote counterpart exists, and whether the branch is already merged into your main branch — so you can narrow down to the ones worth deleting, select them in bulk, and still get them back if you change your mind.
-
-- Runs against any local repository — no server, account, or setup required
-- Zero third-party dependencies: Python + Tkinter, or the packaged `.exe`
-- Every deletion is logged and pinned to a `refs/gbm-backup/*` ref, so it survives `git gc`
-- Skips the current branch, main branches, whitelisted patterns, and branches checked out in other worktrees
-- Remote deletion is off by default and requires typing `DELETE` to confirm
-
-→ **[Download for Windows](https://github.com/carbin1930/git-branch-manager/releases/latest)** — needs Windows and `git` on `PATH`, nothing else
-
-![Screenshot](docs/screenshot.png)
 
 ## 这个工具解决什么问题
 
@@ -33,6 +19,8 @@ It lists local and remote branches side by side, each row showing the last commi
 这个工具把这三件事摆到一屏：**左边本地分支、右边远程分支**，每行直接标出最后提交时间、远程有没有同名、是否已经并入主分支。勾选、批量删，删之前自动留一份能长期恢复的备份。
 
 > 适合：个人项目定期清理、接手别人留下的仓库、团队仓库里几十个 `prod-xxx` 工单分支需要归档。
+
+![界面截图](docs/screenshot.png)
 
 ## 核心能力
 
@@ -280,6 +268,7 @@ git for-each-ref --format="delete %(refname)" refs/gbm-backup | git update-ref -
 | `config.json` | 首次运行自动生成：仓库历史、主分支、筛选条件、白名单、列宽、导出目录 |
 | `branch-delete.log` | 删除留痕，首次删除时生成（追加写） |
 | `error.log` | 仅在程序异常时生成，用于排查 |
+| `README_EN.md` | 英文版说明（与本文内容对应） |
 | `需求文档.md` | 需求规格 |
 
 ## 已知边界
