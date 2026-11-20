@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import traceback
 import webbrowser
 from dataclasses import dataclass, field
@@ -1134,6 +1135,7 @@ class App(tk.Tk):
         self.q = queue.Queue()
         self._busy = False
         self._blocker = None
+        self._blocker_since = 0
         self._gen = 0
         self._fetch_first = True
 
@@ -1418,6 +1420,7 @@ class App(tk.Tk):
         state = "normal" if self.time_var.get() == "自定义" else "disabled"
         self.from_entry.config(state=state)
         self.to_entry.config(state=state)
+        self.after(2000, self._watch_blocker)
 
     def _make_tree(self, parent, cols, sort_key):
         wrap = ttk.Frame(parent)
@@ -1499,6 +1502,7 @@ class App(tk.Tk):
         """破坏性操作期间盖住窗口，挡住继续点击，避免状态错乱。"""
         if self._blocker:
             return
+        top = None
         try:
             self.update_idletasks()
             top = tk.Toplevel(self)
@@ -1511,17 +1515,39 @@ class App(tk.Tk):
             x, y = self.winfo_rootx(), self.winfo_rooty()
             w, h = max(self.winfo_width(), 400), max(self.winfo_height(), 300)
             top.geometry("%dx%d+%d+%d" % (w, h, x, y))
-            tk.Label(top, text=text, fg="#ffffff", bg="#1e1e1e",
-                     font=("Microsoft YaHei UI", 12, "bold")).pack(expand=True)
-            top.lift()
-            top.grab_set()
+            box = tk.Frame(top, bg="#1e1e1e")
+            box.place(relx=0.5, rely=0.5, anchor="center")
+            tk.Label(box, text=text, fg="#ffffff", bg="#1e1e1e",
+                     font=("Microsoft YaHei UI", 14, "bold")).pack()
+            tk.Label(box, text="请稍候，完成后会自动恢复", fg="#b8b8b8", bg="#1e1e1e",
+                     font=UI_FONT_SMALL).pack(pady=(8, 0))
+
+            # 必须先登记再 grab：grab_set 在窗口尚未映射时会抛
+            # "grab failed: window not viewable"，若此时才赋值，
+            # 异常分支会把 _blocker 置空，而遮罩窗口已经显示——
+            # 于是屏幕上留着一层没人负责关闭的灰盖子。
             self._blocker = top
+            self._blocker_since = time.time()
+            top.lift()
+            top.update_idletasks()
+            top.update()
+            try:
+                top.grab_set()
+            except Exception:
+                pass          # 抓不住输入也不要紧，遮罩本身已经挡住视线
             self.config(cursor="watch")
+            top.bind("<Escape>", lambda e: self._abandon_lock())
         except Exception:
             self._blocker = None
+            if top is not None:
+                try:
+                    top.destroy()
+                except Exception:
+                    pass
 
     def _unlock_ui(self):
         top, self._blocker = self._blocker, None
+        self._blocker_since = 0
         try:
             self.config(cursor="")
         except Exception:
@@ -1533,6 +1559,27 @@ class App(tk.Tk):
                 fn()
             except Exception:
                 pass
+
+    def _abandon_lock(self):
+        """Esc 兜底：任务已结束、遮罩却没关掉时，允许手动解除。"""
+        if self._busy:
+            self.status_var.set("操作仍在进行中，请等待完成…")
+            return
+        self._unlock_ui()
+        self.status_var.set("已解除界面锁定。")
+
+    def _watch_blocker(self):
+        """兜底自检：任务结束后遮罩必须消失，超时的也强制收掉。"""
+        if self._blocker is not None:
+            expired = (time.time() - (self._blocker_since or 0)) > 300
+            if not self._busy or expired:
+                self._unlock_ui()
+                if expired and self._busy:
+                    self.status_var.set("界面锁定超时，已解除。请确认上一次操作的实际结果。")
+        try:
+            self.after(2000, self._watch_blocker)
+        except Exception:
+            pass
 
     def _show_progress(self, text=None, maximum=None):
         """maximum 有值 -> 百分比进度；否则 -> 来回滚动的忙碌动画。"""
