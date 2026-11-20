@@ -1509,11 +1509,15 @@ class App(tk.Tk):
             top.overrideredirect(True)
             top.configure(bg="#1e1e1e")
             try:
-                top.attributes("-alpha", 0.62)
+                top.attributes("-alpha", 0.72)
             except Exception:
                 pass
             x, y = self.winfo_rootx(), self.winfo_rooty()
             w, h = max(self.winfo_width(), 400), max(self.winfo_height(), 300)
+            # 向上多吃 32px 盖住标题栏：否则用户还能拖动窗口或点关闭按钮，
+            # 遮罩只管住客户区，看起来就像"只灰了一半"。
+            y = max(y - 32, 0)
+            h += 32
             top.geometry("%dx%d+%d+%d" % (w, h, x, y))
             box = tk.Frame(top, bg="#1e1e1e")
             box.place(relx=0.5, rely=0.5, anchor="center")
@@ -1531,12 +1535,12 @@ class App(tk.Tk):
             top.lift()
             top.update_idletasks()
             top.update()
-            try:
-                top.grab_set()
-            except Exception:
-                pass          # 抓不住输入也不要紧，遮罩本身已经挡住视线
-            self.config(cursor="watch")
+            # grab_set 要求窗口已经映射，否则抛 "grab failed: window not viewable"。
+            # 失败必须重试：抓不住输入的话，遮罩只是一块灰布，用户照样能操作。
+            self._grab_retry(top, 0)
+            top.bind("<Button-1>", lambda e: self._grab_retry(top, 0))
             top.bind("<Escape>", lambda e: self._abandon_lock())
+            self.config(cursor="watch")
         except Exception:
             self._blocker = None
             if top is not None:
@@ -1544,6 +1548,21 @@ class App(tk.Tk):
                     top.destroy()
                 except Exception:
                     pass
+
+    def _grab_retry(self, top, attempt=0):
+        """窗口还没映射时 grab 会失败，隔 40ms 重试，最多约 1 秒。"""
+        if self._blocker is not top:
+            return
+        try:
+            top.grab_set()
+            return
+        except Exception:
+            pass
+        if attempt < 25:
+            try:
+                top.after(40, lambda: self._grab_retry(top, attempt + 1))
+            except Exception:
+                pass
 
     def _unlock_ui(self):
         top, self._blocker = self._blocker, None
