@@ -2,7 +2,7 @@
 
 [中文](README.md) ｜ **English**
 
-**v1.8.1**　Author: 283365011@qq.com
+**v1.8.2**　Author: 283365011@qq.com
 
 [**⬇ Download for Windows**](https://github.com/carbin1930/git-branch-manager/releases/latest)　·　Single portable exe　·　No dependencies
 
@@ -273,7 +273,8 @@ The reason is simple: the log and the backup refs are the *only* way to recover 
 
 | Version | Changes |
 |---|---|
-| **1.8.1** | "Merged only" filter no longer lists main branches; UI locked during delete/fetch |
+| **1.8.2** | Fixed the lock overlay getting stuck and leaving the window frozen; overlay now grabs input and covers the title bar |
+| 1.8.1 | "Merged only" filter no longer lists main branches; UI locked during delete/fetch |
 | 1.8.0 | Branch filter supports `*` / `?` wildcards and space-separated terms; wider search box with placeholder |
 | 1.7.0 | Tooltips on buttons and filters; the "merged & stale" tooltip shows the current cutoff |
 | 1.6.0 | About dialog: version, author, license, repository URL, config/log paths, open-app-folder button |
